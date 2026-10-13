@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "WithdrawalEvent",
+  "namespace": "com.exchange.accounting",
+  "doc": "Emitted when a cash/asset withdrawal is applied to an account.",
+  "fields": [
+    { "name": "account_id", "type": "long" },
+    { "name": "asset", "type": "string" },
+    { "name": "amount", "type": "string" },
+    { "name": "reference", "type": "string" },
+    { "name": "timestamp_ns", "type": "long" }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "LedgerEntryRecordedEvent",
+  "namespace": "com.exchange.accounting",
+  "doc": "One immutable double-entry ledger row. debit leaves the account, credit enters it; at least one is zero.",
+  "fields": [
+    { "name": "entry_id", "type": "long" },
+    { "name": "account_id", "type": "long" },
+    { "name": "asset", "type": "string" },
+    { "name": "debit", "type": "string" },
+    { "name": "credit", "type": "string" },
+    { "name": "reference", "type": "string" },
+    { "name": "reason", "type": "string" },
+    { "name": "timestamp_ns", "type": "long" }
+  ]
+}

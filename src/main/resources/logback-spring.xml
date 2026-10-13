@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Structured JSON console logging, aligned with the other services:
+     timestamp, level, message, service_name, environment. -->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <fieldName>timestamp</fieldName>
+                    <timeZone>UTC</timeZone>
+                </timestamp>
+                <logLevel>
+                    <fieldName>level</fieldName>
+                </logLevel>
+                <message>
+                    <fieldName>message</fieldName>
+                </message>
+                <pattern>
+                    <fieldName>service_name</fieldName>
+                    <pattern>%contextName</pattern>
+                </pattern>
+                <customFields>{"environment":"${APP_ENV:-dev}"}</customFields>
+            </providers>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

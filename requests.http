@@ -1,0 +1,5 @@
+### Accounting summary (in-memory read-model)
+GET http://localhost:8086/accounting/summary
+
+### Trade count per symbol (RocksDB-backed Kafka Streams view)
+GET http://localhost:8086/accounting/trade-counts

@@ -1,0 +1,24 @@
+server:
+  port: ${SERVER_PORT:8086}
+
+spring:
+  application:
+    name: accounting-tax-service
+
+app:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    schema-registry-url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+  accounting:
+    # Placeholder tax model: flat rate applied to trading fees.
+    tax-rate: ${TAX_RATE:0.10}
+
+logging:
+  level:
+    com.exchange.accounting: ${LOG_LEVEL:INFO}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

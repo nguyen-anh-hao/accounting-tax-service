@@ -1,0 +1,21 @@
+{
+  "type": "record",
+  "name": "TradeSettledEvent",
+  "namespace": "com.exchange.accounting",
+  "doc": "Emitted when a matched trade is cleared and settled. Carries fees for revenue & tax accounting.",
+  "fields": [
+    { "name": "trade_id", "type": "long" },
+    { "name": "symbol", "type": "string" },
+    { "name": "price", "type": "string" },
+    { "name": "quantity", "type": "string" },
+    { "name": "buyer_fee", "type": "string" },
+    { "name": "seller_fee", "type": "string" },
+    { "name": "maker_order_id", "type": "long" },
+    { "name": "taker_order_id", "type": "long" },
+    { "name": "maker_account_id", "type": "long" },
+    { "name": "taker_account_id", "type": "long" },
+    { "name": "buyer_account_id", "type": "long" },
+    { "name": "seller_account_id", "type": "long" },
+    { "name": "timestamp_ns", "type": "long" }
+  ]
+}
