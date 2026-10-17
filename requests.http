@@ -1,3 +1,9 @@
+### Swagger UI (interactive API docs)
+# open http://localhost:8086/swagger-ui.html
+
+### OpenAPI spec (JSON)
+GET http://localhost:8086/v3/api-docs
+
 ### Accounting summary (in-memory read-model)
 GET http://localhost:8086/accounting/summary
 

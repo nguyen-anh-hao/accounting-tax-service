@@ -4,18 +4,42 @@ import com.exchange.accounting.LedgerEntryRecordedEvent;
 import com.exchange.accounting.TradeSettledEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.HashOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class AccountingServiceTest {
 
     private AccountingService service;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
-        service = new AccountingService(new BigDecimal("0.10"));
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        HashOperations<String, Object, Object> hash = mock(HashOperations.class);
+        Map<String, Map<Object, Object>> data = new HashMap<>();
+        when(redis.opsForHash()).thenReturn(hash);
+        when(hash.increment(anyString(), any(), anyLong())).thenAnswer(inv -> {
+            String key = inv.getArgument(0);
+            Object field = inv.getArgument(1);
+            long delta = inv.getArgument(2);
+            Map<Object, Object> fields = data.computeIfAbsent(key, k -> new HashMap<>());
+            long current = fields.get(field) == null ? 0L : Long.parseLong(String.valueOf(fields.get(field)));
+            fields.put(field, current + delta);
+            return current + delta;
+        });
+        when(hash.entries(anyString())).thenAnswer(inv -> data.getOrDefault(inv.getArgument(0), Map.of()));
+        service = new AccountingService(redis, new BigDecimal("0.10"));
     }
 
     @Test

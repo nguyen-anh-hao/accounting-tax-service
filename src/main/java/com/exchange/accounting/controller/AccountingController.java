@@ -3,13 +3,6 @@ package com.exchange.accounting.controller;
 import com.exchange.accounting.service.AccountingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.apache.kafka.streams.KafkaStreams;
-import org.apache.kafka.streams.StoreQueryParameters;
-import org.apache.kafka.streams.errors.StreamsException;
-import org.apache.kafka.streams.state.QueryableStoreTypes;
-import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -17,8 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Read-only API for the accounting & tax read-model and the RocksDB-backed
- * Kafka Streams view.
+ * Read-only API for the stateless accounting & tax read-model stored in Redis.
  */
 @Tag(name = "Accounting & Tax",
         description = "Read-only accounting & tax read-model derived from settlement events. "
@@ -26,14 +18,10 @@ import java.util.Map;
 @RestController
 public class AccountingController {
 
-    private static final Logger log = LoggerFactory.getLogger(AccountingController.class);
-
     private final AccountingService accountingService;
-    private final KafkaStreams streams;
 
-    public AccountingController(AccountingService accountingService, KafkaStreams streams) {
+    public AccountingController(AccountingService accountingService) {
         this.accountingService = accountingService;
-        this.streams = streams;
     }
 
     @Operation(summary = "Accounting summary",
@@ -50,24 +38,9 @@ public class AccountingController {
     }
 
     @Operation(summary = "Trade count per symbol",
-            description = "Number of settled trades per symbol, read from the RocksDB-backed "
-                    + "Kafka Streams materialized view. Falls back to the in-memory view while "
-                    + "the streams app is rebalancing.")
+            description = "Number of settled trades per symbol, read from the shared Redis aggregate.")
     @GetMapping("/accounting/trade-counts")
     public Map<String, Long> tradeCounts() {
-        Map<String, Long> out = new LinkedHashMap<>();
-        try {
-            ReadOnlyKeyValueStore<String, Long> store = streams.store(
-                    StoreQueryParameters.fromNameAndType("trade-count-by-symbol",
-                            QueryableStoreTypes.keyValueStore()));
-            store.all().forEachRemaining(kv -> out.put(kv.key, kv.value));
-        } catch (IllegalStateException | StreamsException e) {
-            // The state store is not queryable: Streams may still be (re)balancing, or
-            // the client is in ERROR state (e.g. a source topic was missing at startup).
-            // Serve the in-memory view instead of failing the whole request with a 500.
-            log.warn("trade-count state store unavailable ({}); serving in-memory view", e.getMessage());
-            out.putAll(accountingService.tradeCountBySymbol());
-        }
-        return out;
+        return accountingService.tradeCountBySymbol();
     }
 }
