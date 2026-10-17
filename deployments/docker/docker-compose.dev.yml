@@ -1,0 +1,117 @@
+# =============================================================================
+# Standalone local DEV infrastructure for `accounting-tax-service`.
+#
+# This stack provides ONLY the backing services the app needs to boot — Kafka
+# (Redpanda) + Schema Registry — on its own private bridge network. It does NOT
+# run `accounting-tax-service` itself: run that from your IDE (breakpoints,
+# hot-reload, no Docker rebuild).
+#
+# The app defaults already point here, so running it from the IDE needs no extra
+# configuration (application.yml: KAFKA_BOOTSTRAP_SERVERS=localhost:9092,
+# SCHEMA_REGISTRY_URL=http://localhost:8081).
+#
+#   docker compose -f deployments/docker/docker-compose.dev.yml up -d
+#
+#   Schema Registry   : http://localhost:8081
+#   Kafka (from host) : localhost:9092
+#   Kafka Console(ui) : http://localhost:8080   (opt-in: --profile ui)
+#
+# `topic-init` creates the `accounting.*` topics (+ `.DLT` twins) empty. To push
+# sample events from your IDE, run the dev-only publisher
+# `com.exchange.accounting.tools.SmokeEventPublisher` (see README.md).
+# =============================================================================
+
+name: accounting-tax-dev
+
+services:
+  # ---------------------------------------------------------------------------
+  # Kafka event backbone (Redpanda keeps local dev lightweight).
+  # ---------------------------------------------------------------------------
+  redpanda:
+    image: redpandadata/redpanda:v24.2.18
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1G
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster info --brokers localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - accounting-dev
+
+  # ---------------------------------------------------------------------------
+  # Confluent Schema Registry — required by the service's Avro (specific) serdes.
+  # ---------------------------------------------------------------------------
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.7.1
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://redpanda:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_SCHEMA_COMPATIBILITY_LEVEL: backward
+    ports:
+      - "8081:8081"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    networks:
+      - accounting-dev
+
+  # ---------------------------------------------------------------------------
+  # One-shot bootstrap: pre-create the topics this service consumes (and their
+  # `.DLT` dead-letter twins) so the read-model is deterministic instead of
+  # relying on broker auto-creation defaults.
+  # ---------------------------------------------------------------------------
+  topic-init:
+    image: redpandadata/redpanda:v24.2.18
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >
+        for t in accounting.trade accounting.ledger accounting.deposit accounting.withdrawal; do
+          rpk topic create "$$t" --brokers redpanda:29092 -p 1 -r 1 || true;
+          rpk topic create "$$t.DLT" --brokers redpanda:29092 -p 1 -r 1 || true;
+        done;
+        echo "accounting topics ready";
+        rpk topic list --brokers redpanda:29092
+    networks:
+      - accounting-dev
+
+  # ---------------------------------------------------------------------------
+  # Optional dev UI (topics / schemas / messages). Start with: --profile ui
+  # ---------------------------------------------------------------------------
+  console:
+    image: redpandadata/console:v2.7.2
+    profiles: ["ui"]
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+      KAFKA_SCHEMAREGISTRY_ENABLED: "true"
+      KAFKA_SCHEMAREGISTRY_URLS: http://schema-registry:8081
+      REDPANDA_ADMINAPI_ENABLED: "true"
+      REDPANDA_ADMINAPI_URLS: http://redpanda:9644
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      schema-registry:
+        condition: service_started
+    networks:
+      - accounting-dev
+
+networks:
+  # Private bridge network — never `external`, never `trading-net`.
+  accounting-dev:
+    driver: bridge

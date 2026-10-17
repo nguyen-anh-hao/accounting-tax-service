@@ -1,9 +1,7 @@
 package com.exchange.accounting.service;
 
-import com.exchange.accounting.DepositEvent;
 import com.exchange.accounting.LedgerEntryRecordedEvent;
 import com.exchange.accounting.TradeSettledEvent;
-import com.exchange.accounting.WithdrawalEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -51,17 +49,18 @@ class AccountingServiceTest {
     }
 
     @Test
-    void onDeposit_and_onWithdrawal_updateCashFlow() {
-        service.onDeposit(DepositEvent.newBuilder()
-                .setAccountId(1001L).setAsset("CASH").setAmount("10000.00")
-                .setReference("").setTimestampNs(0L)
-                .build());
-        service.onWithdrawal(WithdrawalEvent.newBuilder()
-                .setAccountId(1001L).setAsset("CASH").setAmount("2500.00")
-                .setReference("").setTimestampNs(0L)
-                .build());
+    void cashFlow_isLedgerDriven_andNotDoubleCounted() {
+        // Mirrors what clearing-settlement writes for one deposit + one withdrawal:
+        // each movement produces a CASH row for the user account AND the house
+        // account (0). Cash flow must follow the ledger only (no Deposit/Withdrawal
+        // event), otherwise every amount is counted twice.
+        service.onLedgerEntry(ledger(1L, 1001L, "CASH", "0", "10000.00", "DEPOSIT"));
+        service.onLedgerEntry(ledger(2L, 0L, "CASH", "10000.00", "0", "DEPOSIT"));
+        service.onLedgerEntry(ledger(3L, 1001L, "CASH", "500.00", "0", "WITHDRAWAL"));
+        service.onLedgerEntry(ledger(4L, 0L, "CASH", "0", "500.00", "WITHDRAWAL"));
 
-        assertThat(service.cashFlowByAccount().get(1001L)).isEqualByComparingTo("7500.00");
+        assertThat(service.cashFlowByAccount().get(1001L)).isEqualByComparingTo("9500.00");
+        assertThat(service.cashFlowByAccount().get(0L)).isEqualByComparingTo("-9500.00");
     }
 
     private static TradeSettledEvent trade(String symbol, String price, String qty,

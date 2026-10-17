@@ -9,6 +9,10 @@ app:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     schema-registry-url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+    streams:
+      # Kafka Streams (RocksDB) state directory. Must be unique per running instance,
+      # otherwise a second instance fails to acquire the state-store lock.
+      state-dir: ${STREAMS_STATE_DIR:${java.io.tmpdir}/accounting-tax-service-rocksdb}
   accounting:
     # Placeholder tax model: flat rate applied to trading fees.
     tax-rate: ${TAX_RATE:0.10}

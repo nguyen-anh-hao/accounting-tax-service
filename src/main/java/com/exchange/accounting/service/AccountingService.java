@@ -1,9 +1,7 @@
 package com.exchange.accounting.service;
 
-import com.exchange.accounting.DepositEvent;
 import com.exchange.accounting.LedgerEntryRecordedEvent;
 import com.exchange.accounting.TradeSettledEvent;
-import com.exchange.accounting.WithdrawalEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +16,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>All monetary arithmetic uses {@link BigDecimal} (fixed-point) — no floating
  * point — consistent with the rest of the platform.</p>
+ *
+ * <p><b>Cash flow source of truth:</b> the double-entry journal (the CASH rows of
+ * {@link LedgerEntryRecordedEvent}). For a single movement clearing-settlement
+ * emits a Deposit/Withdrawal event <i>and</i> the matching ledger rows, so
+ * counting both sources would double every amount — {@code cash_flow_by_account}
+ * is therefore derived from the ledger only.</p>
  */
 @Service
 public class AccountingService {
@@ -48,19 +52,16 @@ public class AccountingService {
         taxLiabilityByAccount.merge(e.getSellerAccountId(), tax, BigDecimal::add);
     }
 
+    /**
+     * Cash movement per account, derived from the double-entry journal. Every cash
+     * movement (deposit, withdrawal, trade leg) produces a CASH ledger row, so this
+     * is the single, un-doubled source for {@code cash_flow_by_account}.
+     */
     public void onLedgerEntry(LedgerEntryRecordedEvent e) {
         if ("CASH".equals(e.getAsset())) {
             BigDecimal delta = new BigDecimal(e.getCredit()).subtract(new BigDecimal(e.getDebit()));
             cashFlowByAccount.merge(e.getAccountId(), delta, BigDecimal::add);
         }
-    }
-
-    public void onDeposit(DepositEvent e) {
-        cashFlowByAccount.merge(e.getAccountId(), new BigDecimal(e.getAmount()), BigDecimal::add);
-    }
-
-    public void onWithdrawal(WithdrawalEvent e) {
-        cashFlowByAccount.merge(e.getAccountId(), new BigDecimal(e.getAmount()).negate(), BigDecimal::add);
     }
 
     public Map<String, BigDecimal> feeRevenueBySymbol() {

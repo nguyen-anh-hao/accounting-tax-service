@@ -15,9 +15,13 @@
                 <message>
                     <fieldName>message</fieldName>
                 </message>
+                <!-- NOTE: the <pattern> provider (LoggingEventPatternJsonProvider) has no
+                     <fieldName>; its body MUST be a valid JSON object, with logback
+                     pattern expressions embedded inside the JSON string values. -->
                 <pattern>
-                    <fieldName>service_name</fieldName>
-                    <pattern>%contextName</pattern>
+                    {
+                    "service_name": "%contextName"
+                    }
                 </pattern>
                 <customFields>{"environment":"${APP_ENV:-dev}"}</customFields>
             </providers>

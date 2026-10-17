@@ -37,6 +37,9 @@ public class KafkaStreamsConfig {
     @Value("${spring.application.name}")
     private String appName;
 
+    @Value("${app.kafka.streams.state-dir:${java.io.tmpdir}/accounting-tax-service-rocksdb}")
+    private String stateDir;
+
     @Bean(destroyMethod = "close")
     public KafkaStreams tradeCountStreams() {
         Properties props = new Properties();
@@ -44,8 +47,7 @@ public class KafkaStreamsConfig {
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-        props.put(StreamsConfig.STATE_DIR_CONFIG,
-                System.getProperty("java.io.tmpdir") + "/accounting-tax-service-rocksdb");
+        props.put(StreamsConfig.STATE_DIR_CONFIG, stateDir);
         props.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 1000);
 
         SpecificAvroSerde<TradeSettledEvent> tradeSerde = new SpecificAvroSerde<>();

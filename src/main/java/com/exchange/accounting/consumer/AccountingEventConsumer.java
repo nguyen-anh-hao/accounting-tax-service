@@ -1,9 +1,7 @@
 package com.exchange.accounting.consumer;
 
-import com.exchange.accounting.DepositEvent;
 import com.exchange.accounting.LedgerEntryRecordedEvent;
 import com.exchange.accounting.TradeSettledEvent;
-import com.exchange.accounting.WithdrawalEvent;
 import com.exchange.accounting.service.AccountingService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -39,19 +37,5 @@ public class AccountingEventConsumer {
         LedgerEntryRecordedEvent event = (LedgerEntryRecordedEvent) record.value();
         accountingService.onLedgerEntry(event);
         log.debug("consumed ledger entry entry_id={}", event.getEntryId());
-    }
-
-    @KafkaListener(topics = "accounting.deposit", groupId = "accounting-tax-service")
-    public void onDeposit(ConsumerRecord<String, Object> record) {
-        DepositEvent event = (DepositEvent) record.value();
-        accountingService.onDeposit(event);
-        log.debug("consumed deposit account_id={}", event.getAccountId());
-    }
-
-    @KafkaListener(topics = "accounting.withdrawal", groupId = "accounting-tax-service")
-    public void onWithdrawal(ConsumerRecord<String, Object> record) {
-        WithdrawalEvent event = (WithdrawalEvent) record.value();
-        accountingService.onWithdrawal(event);
-        log.debug("consumed withdrawal account_id={}", event.getAccountId());
     }
 }
