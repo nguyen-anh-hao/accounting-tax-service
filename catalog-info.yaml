@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: accounting-tax-service
+  description: Read-only accounting and tax aggregates derived from settlement events.
+  annotations:
+    github.com/project-slug: nguyen-anh-hao/accounting-tax-service
+  tags: [java, accounting, read-model]
+spec:
+  type: service
+  lifecycle: experimental
+  owner: nguyen-anh-hao
+  system: trading-exchange
+  dependsOn:
+    - resource:kafka
+    - resource:redis
+    - resource:schema-registry
