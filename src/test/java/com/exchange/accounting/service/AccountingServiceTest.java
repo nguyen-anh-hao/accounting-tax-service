@@ -2,6 +2,7 @@ package com.exchange.accounting.service;
 
 import com.exchange.accounting.LedgerEntryRecordedEvent;
 import com.exchange.accounting.TradeSettledEvent;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.HashOperations;
@@ -39,7 +40,7 @@ class AccountingServiceTest {
             return current + delta;
         });
         when(hash.entries(anyString())).thenAnswer(inv -> data.getOrDefault(inv.getArgument(0), Map.of()));
-        service = new AccountingService(redis, new BigDecimal("0.10"));
+        service = new AccountingService(redis, new BigDecimal("0.10"), new SimpleMeterRegistry());
     }
 
     @Test

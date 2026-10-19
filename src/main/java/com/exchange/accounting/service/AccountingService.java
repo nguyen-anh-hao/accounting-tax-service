@@ -2,6 +2,9 @@ package com.exchange.accounting.service;
 
 import com.exchange.accounting.LedgerEntryRecordedEvent;
 import com.exchange.accounting.TradeSettledEvent;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -34,23 +37,45 @@ public class AccountingService {
 
     private final StringRedisTemplate redis;
     private final BigDecimal taxRate;
+    private final MeterRegistry meters;
+    private final Counter consumedTrades;
+    private final Counter consumedEntries;
+    private final Counter errors;
+    private final Timer tradeTimer;
+    private final Timer ledgerTimer;
 
     public AccountingService(StringRedisTemplate redis,
-                             @Value("${app.accounting.tax-rate:0.10}") BigDecimal taxRate) {
+                             @Value("${app.accounting.tax-rate:0.10}") BigDecimal taxRate,
+                             MeterRegistry meters) {
         this.redis = redis;
         this.taxRate = taxRate;
+        this.meters = meters;
+        this.consumedTrades = meters.counter("trading_accounting_events_consumed_total", "type", "trade");
+        this.consumedEntries = meters.counter("trading_accounting_events_consumed_total", "type", "ledger");
+        this.errors = meters.counter("trading_accounting_errors_total");
+        this.tradeTimer = meters.timer("trading_accounting_event_duration_seconds", "type", "trade");
+        this.ledgerTimer = meters.timer("trading_accounting_event_duration_seconds", "type", "ledger");
     }
 
     public void onTradeSettled(TradeSettledEvent e) {
-        String symbol = e.getSymbol();
-        BigDecimal fee = new BigDecimal(e.getBuyerFee()).add(new BigDecimal(e.getSellerFee()));
-        BigDecimal notional = new BigDecimal(e.getPrice()).multiply(new BigDecimal(e.getQuantity()));
-        BigDecimal tax = fee.multiply(taxRate);
+        Timer.Sample sample = Timer.start(meters);
+        try {
+            String symbol = e.getSymbol();
+            BigDecimal fee = new BigDecimal(e.getBuyerFee()).add(new BigDecimal(e.getSellerFee()));
+            BigDecimal notional = new BigDecimal(e.getPrice()).multiply(new BigDecimal(e.getQuantity()));
+            BigDecimal tax = fee.multiply(taxRate);
 
-        redis.opsForHash().increment(FEE_REVENUE, symbol, scaled(fee));
-        redis.opsForHash().increment(NOTIONAL, symbol, scaled(notional));
-        redis.opsForHash().increment(TRADE_COUNT, symbol, 1L);
-        redis.opsForHash().increment(TAX_LIABILITY, String.valueOf(e.getSellerAccountId()), scaled(tax));
+            redis.opsForHash().increment(FEE_REVENUE, symbol, scaled(fee));
+            redis.opsForHash().increment(NOTIONAL, symbol, scaled(notional));
+            redis.opsForHash().increment(TRADE_COUNT, symbol, 1L);
+            redis.opsForHash().increment(TAX_LIABILITY, String.valueOf(e.getSellerAccountId()), scaled(tax));
+            consumedTrades.increment();
+        } catch (RuntimeException ex) {
+            errors.increment();
+            throw ex;
+        } finally {
+            sample.stop(tradeTimer);
+        }
     }
 
     /**
@@ -59,9 +84,18 @@ public class AccountingService {
      * is the single, un-doubled source for {@code cash_flow_by_account}.
      */
     public void onLedgerEntry(LedgerEntryRecordedEvent e) {
-        if ("CASH".equals(e.getAsset())) {
-            BigDecimal delta = new BigDecimal(e.getCredit()).subtract(new BigDecimal(e.getDebit()));
-            redis.opsForHash().increment(CASH_FLOW, String.valueOf(e.getAccountId()), scaled(delta));
+        Timer.Sample sample = Timer.start(meters);
+        try {
+            if ("CASH".equals(e.getAsset())) {
+                BigDecimal delta = new BigDecimal(e.getCredit()).subtract(new BigDecimal(e.getDebit()));
+                redis.opsForHash().increment(CASH_FLOW, String.valueOf(e.getAccountId()), scaled(delta));
+            }
+            consumedEntries.increment();
+        } catch (RuntimeException ex) {
+            errors.increment();
+            throw ex;
+        } finally {
+            sample.stop(ledgerTimer);
         }
     }
 
